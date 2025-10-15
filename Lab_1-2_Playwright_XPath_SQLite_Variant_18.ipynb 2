@@ -1,0 +1,59 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 5,
+  "metadata": {
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python",
+      "pygments_lexer": "ipython3"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {},
+      "source": [
+        "# Лабораторная 1–2 — Вариант 18\nPlaywright + XPath + SQLite (Chitai-Gorod)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "execution_count": null,
+      "outputs": [],
+      "source": [
+        "# !pip install playwright pandas matplotlib\n# !playwright install\nimport sqlite3, re\nimport pandas as pd\nimport matplotlib.pyplot as plt\nfrom pathlib import Path\nDB = Path('lab_variant18.db')\nOUT = Path('lab_variant18_outputs'); OUT.mkdir(exist_ok=True)\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "execution_count": null,
+      "outputs": [],
+      "source": [
+        "# Заготовка функции парсинга (выполнять в среде с интернетом)\n# from playwright.sync_api import sync_playwright\nXPATHS = {\n    'title': \"//h1[contains(@class,'product__title') or contains(@class,'product-title')]\",\n    'price': \"//span[contains(@class,'price') and (contains(@class,'__current') or contains(@class,'-current'))]\",\n    'availability': \"//*[contains(translate(.,'ВНАЛИЧИЕТ','вналичиет'),'в наличии') or contains(.,'нет в наличии')]\",\n    'format': \"//*[contains(.,'твёрдая') or contains(.,'твердая') or contains(.,'мягкая')]\"\n}\n\ndef normalize_price(s):\n    if not isinstance(s,str): return None\n    s = re.sub(r'[^0-9.,]','', s).replace(',', '.')\n    try: return float(s)\n    except: return None\n\n# def scrape(url):\n#     with sync_playwright() as p:\n#         br = p.chromium.launch(headless=True); pg = br.new_page(); pg.goto(url, wait_until='domcontentloaded', timeout=60000); pg.wait_for_timeout(1500)\n#         def txt(xp):\n#             try: return pg.locator(f'xpath={xp}').first.inner_text().strip()\n#             except: return ''\n#         data = {k: txt(xp) for k,xp in XPATHS.items()}\n#         data['price'] = normalize_price(data.get('price'))\n#         br.close(); return data\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "execution_count": null,
+      "outputs": [],
+      "source": [
+        "# Демоданные (если парсинг не запущен)\nrecords = [\n    {'title':'Книга A','price':599.0,'availability':'В наличии','format':'твёрдая'},\n    {'title':'Книга B','price':449.0,'availability':'Нет в наличии','format':'мягкая'},\n    {'title':'Книга C','price':899.0,'availability':'В наличии','format':'твёрдая'},\n    {'title':'Книга D','price':399.0,'availability':'В наличии','format':'мягкая'},\n    {'title':'Книга E','price':999.0,'availability':'В наличии','format':'твёрдая'},\n]\nconn = sqlite3.connect(DB)\npd.DataFrame(records).to_sql('books', conn, if_exists='replace', index=False)\nconn.close()\npd.DataFrame(records).head()\n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "metadata": {},
+      "execution_count": null,
+      "outputs": [],
+      "source": [
+        "# Примеры SQL + визуализации\nconn = sqlite3.connect(DB)\ndf_top = pd.read_sql_query(\"SELECT title, price FROM books ORDER BY price DESC LIMIT 5;\", conn)\ndf_fmt = pd.read_sql_query(\"SELECT format, COUNT(*) as cnt FROM books GROUP BY format;\", conn)\ndf_av  = pd.read_sql_query(\"SELECT availability, COUNT(*) as cnt FROM books GROUP BY availability;\", conn)\nconn.close()\n\n# Топ-5 по цене\nplt.figure(figsize=(6,4))\nplt.barh(df_top['title'], df_top['price'])\nplt.gca().invert_yaxis()\nplt.title('Топ-5 по цене')\nplt.xlabel('Цена')\nplt.tight_layout()\nplt.savefig(OUT/'top5_price.png', dpi=200); plt.show()\n\n# Кол-во по формату\nplt.figure(figsize=(5,4))\nplt.bar(df_fmt['format'], df_fmt['cnt'])\nplt.title('Распределение по формату')\nplt.ylabel('Кол-во')\nplt.tight_layout()\nplt.savefig(OUT/'formats_count.png', dpi=200); plt.show()\n\n# Наличие (pie)\nplt.figure(figsize=(5,5))\nplt.pie(df_av['cnt'], labels=df_av['availability'], autopct='%1.1f%%')\nplt.title('Наличие')\nplt.tight_layout()\nplt.savefig(OUT/'availability_share.png', dpi=200); plt.show()\n"
+      ]
+    }
+  ]
+}
